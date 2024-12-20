@@ -12,3 +12,114 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id          Int      @id @default(autoincrement())
+  name        String
+  lastname    String
+  email       String   @unique
+  cuilprefix  Int
+  dni         Int      @unique
+  cuilpostfix Int
+  createdAt   DateTime @default(now())
+  roles       Role[]   @relation("UserRoles")
+  // Relación con los doctores
+  doctor      Doctor?  @relation(fields: [doctorId], references: [id])
+  doctorId    Int?
+}
+
+model Doctor {
+  id                  Int             @id @default(autoincrement())
+  userId              Int             @unique // Relacionado con el modelo User
+  matriculaNacional   String          @unique // Matrícula del doctor
+  matriculaProvincial String          @unique // Matrícula del doctor
+  specialties         Specialty[]     @relation("DoctorSpecialty") // Especialidades del doctor
+  User                User[]
+  medicalEvolution    MedicalRecord[]
+  appointments        Appointment[]
+  practices           Practice[]
+}
+
+model Specialty {
+  id      Int      @id @default(autoincrement())
+  name    String   @unique
+  doctors Doctor[] @relation("DoctorSpecialty") // Relación con los doctores
+}
+
+model Role {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  permissions Permission[] @relation("RolePermissions")
+  users       User[]       @relation("UserRoles")
+}
+
+model Permission {
+  id    Int    @id @default(autoincrement())
+  name  String
+  roles Role[] @relation("RolePermissions")
+}
+
+model Social {
+  id       Int       @id @default(autoincrement())
+  name     String
+  pacients Pacient[] @relation("SocialPacient")
+}
+
+model Pacient {
+  id              Int             @id @default(autoincrement())
+  name            String
+  lastname        String
+  dni             Int             @unique
+  medicalHistorys MedicalRecord[]
+  socialNumber    Int
+  socials         Social[]        @relation("SocialPacient")
+  appointments    Appointment[]
+  practices       Practice[]
+}
+
+model MedicalRecord {
+  id        Int      @id @default(autoincrement())
+  patient   Pacient  @relation(fields: [patientId], references: [id])
+  patientId Int
+  doctor    Doctor   @relation(fields: [doctorId], references: [id])
+  doctorId  Int
+  date      DateTime @default(now())
+  diagnosis String
+  evolution String // Campo para almacenar texto extenso
+}
+
+model Appointment {
+  id        Int        @id @default(autoincrement())
+  patient   Pacient    @relation(fields: [patientId], references: [id])
+  patientId Int
+  doctor    Doctor     @relation(fields: [doctorId], references: [id])
+  doctorId  Int
+  date      DateTime // Solo la fecha
+  hour      Int // Hora en formato 24h
+  minute    Int // Minuto
+  createdAt DateTime   @default(now())
+  practices Practice[]
+}
+
+model Practice {
+  id            Int          @id @default(autoincrement())
+  type          PracticeType @relation(fields: [typeId], references: [id])
+  typeId        Int
+  description   String?
+  date          DateTime     @default(now()) // Fecha de la práctica (solo día)
+  hour          Int // Hora de la práctica (0-23)
+  minute        Int // Minuto de la práctica (0-59)
+  patient       Pacient      @relation(fields: [patientId], references: [id])
+  patientId     Int
+  doctor        Doctor       @relation(fields: [doctorId], references: [id])
+  doctorId      Int
+  appointment   Appointment  @relation(fields: [appointmentId], references: [id])
+  appointmentId Int
+  createdAt     DateTime     @default(now())
+}
+
+model PracticeType {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique // Nombre del tipo de práctica
+  practices Practice[]
+}
