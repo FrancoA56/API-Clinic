@@ -60,9 +60,10 @@ model Permission {
 }
 
 model Social {
-  id       Int       @id @default(autoincrement())
-  name     String
-  pacients Pacient[] @relation("SocialPacient")
+  id        Int        @id @default(autoincrement())
+  name      String
+  pacients  Pacient[]  @relation("SocialPacient")
+  practices Practice[]
 }
 
 model Pacient {
@@ -106,6 +107,10 @@ model Practice {
   type          PracticeType @relation(fields: [typeId], references: [id])
   typeId        Int
   description   String?
+  code          Int
+  honorario     Float
+  gastos        Float
+  valor         Float
   date          DateTime     @default(now()) // Fecha de la práctica (solo día)
   hour          Int // Hora de la práctica (0-23)
   minute        Int // Minuto de la práctica (0-59)
@@ -115,6 +120,8 @@ model Practice {
   doctorId      Int
   appointment   Appointment  @relation(fields: [appointmentId], references: [id])
   appointmentId Int
+  socials       Social       @relation(fields: [socialId], references: [id])
+  socialId      Int
   createdAt     DateTime     @default(now())
 }
 
