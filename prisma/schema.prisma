@@ -4,6 +4,18 @@
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
+enum InvoiceType {
+  A
+  B
+  C
+}
+
+enum PracticeStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -23,18 +35,16 @@ model User {
   cuilpostfix Int
   createdAt   DateTime @default(now())
   roles       Role[]   @relation("UserRoles")
-  // Relación con los doctores
-  doctor      Doctor?  @relation(fields: [doctorId], references: [id])
-  doctorId    Int?
+  doctor      Doctor?  @relation("DoctorUser") // Solo especificamos el nombre de la relación aquí
 }
 
 model Doctor {
   id                  Int             @id @default(autoincrement())
-  userId              Int             @unique // Relacionado con el modelo User
-  matriculaNacional   String          @unique // Matrícula del doctor
-  matriculaProvincial String          @unique // Matrícula del doctor
-  specialties         Specialty[]     @relation("DoctorSpecialty") // Especialidades del doctor
-  User                User[]
+  matriculaNacional   Int             @unique
+  matriculaProvincial Int             @unique
+  user                User            @relation("DoctorUser", fields: [userId], references: [id]) // Aquí especificamos campos y referencias
+  userId              Int             @unique // Campo relacionado con el ID de usuario
+  specialties         Specialty[]     @relation("DoctorSpecialty")
   medicalEvolution    MedicalRecord[]
   appointments        Appointment[]
   practices           Practice[]
@@ -60,10 +70,13 @@ model Permission {
 }
 
 model Social {
-  id        Int        @id @default(autoincrement())
-  name      String
-  pacients  Pacient[]  @relation("SocialPacient")
-  practices Practice[]
+  id            Int             @id @default(autoincrement())
+  name          String
+  cuil          String          @unique
+  pacients      Pacient[]       @relation("SocialPacient")
+  practices     Practice[]
+  invoices      Invoice[]
+  pacientSocial PacientSocial[]
 }
 
 model Pacient {
@@ -72,10 +85,20 @@ model Pacient {
   lastname        String
   dni             Int             @unique
   medicalHistorys MedicalRecord[]
-  socialNumber    Int
+  socialNumber    String
   socials         Social[]        @relation("SocialPacient")
   appointments    Appointment[]
   practices       Practice[]
+  pacientSocial   PacientSocial[]
+}
+
+model PacientSocial {
+  id           Int     @id @default(autoincrement())
+  pacient      Pacient @relation(fields: [pacientId], references: [id])
+  pacientId    Int
+  social       Social  @relation(fields: [socialId], references: [id])
+  socialId     Int
+  socialNumber Int
 }
 
 model MedicalRecord {
@@ -95,38 +118,49 @@ model Appointment {
   patientId Int
   doctor    Doctor     @relation(fields: [doctorId], references: [id])
   doctorId  Int
-  date      DateTime // Solo la fecha
-  hour      Int // Hora en formato 24h
-  minute    Int // Minuto
+  date      DateTime
   createdAt DateTime   @default(now())
   practices Practice[]
 }
 
 model Practice {
-  id            Int          @id @default(autoincrement())
-  type          PracticeType @relation(fields: [typeId], references: [id])
+  id            Int            @id @default(autoincrement())
+  type          PracticeType   @relation(fields: [typeId], references: [id])
   typeId        Int
   description   String?
   code          Int
   honorario     Float
   gastos        Float
   valor         Float
-  date          DateTime     @default(now()) // Fecha de la práctica (solo día)
+  date          DateTime       @default(now()) // Fecha de la práctica (solo día)
   hour          Int // Hora de la práctica (0-23)
   minute        Int // Minuto de la práctica (0-59)
-  patient       Pacient      @relation(fields: [patientId], references: [id])
+  patient       Pacient        @relation(fields: [patientId], references: [id])
   patientId     Int
-  doctor        Doctor       @relation(fields: [doctorId], references: [id])
+  doctor        Doctor         @relation(fields: [doctorId], references: [id])
   doctorId      Int
-  appointment   Appointment  @relation(fields: [appointmentId], references: [id])
+  appointment   Appointment    @relation(fields: [appointmentId], references: [id])
   appointmentId Int
-  socials       Social       @relation(fields: [socialId], references: [id])
+  socials       Social         @relation(fields: [socialId], references: [id])
   socialId      Int
-  createdAt     DateTime     @default(now())
+  status        PracticeStatus @default(PENDING)
+  createdAt     DateTime       @default(now())
 }
 
 model PracticeType {
   id        Int        @id @default(autoincrement())
   name      String     @unique // Nombre del tipo de práctica
   practices Practice[]
+}
+
+model Invoice {
+  id      Int         @id @default(autoincrement())
+  type    InvoiceType
+  serie   Int
+  number  Int
+  total   Float
+  pdfUrl  String?
+  socials Social[]
+
+  @@unique([type, serie, number])
 }
