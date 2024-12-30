@@ -1,41 +1,89 @@
-import { Request, Response } from "express";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import { Request, Response, NextFunction } from "express";
 import prisma from "../config/prisma";
 
-export const getAllUsers = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+// Asegúrate de que JWT_SECRET esté correctamente definido
+const JWT_SECRET = process.env.JWT_SECRET as string;
+
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET is not defined in the environment variables.");
+}
+
+export const loginUser = async (req: Request, res: Response): Promise<void> => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    res.status(400).json({ error: "Email and password are required." });
+    return;
+  }
+
   try {
-    const users = await prisma.user.findMany();
-    res.status(200).json(users);
+    // Buscar al usuario por email
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      res.status(401).json({ error: "Invalid email or password." });
+      return;
+    }
+
+    // Verificar contraseña
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      res.status(401).json({ error: "Invalid email or password." });
+      return;
+    }
+
+    // Generar JWT
+    const token = jwt.sign(
+      { userId: user.id, email: user.email },
+      JWT_SECRET,
+      { expiresIn: "1h" } // Expira en 1 hora
+    );
+
+    res.status(200).json({ token, user: { id: user.id, name: user.name, email: user.email } });
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch users." });
+    console.error("Error during login:", error);
+    res.status(500).json({ error: "Failed to log in." });
   }
 };
 
-export const createUser = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
+export const createUser = async (req: Request, res: Response): Promise<void> => {
   const {
     name,
     lastname,
     email,
+    password, // La contraseña del nuevo usuario
     cuilprefix,
     dni,
     cuilpostfix,
-    roles,
-    doctor, // Datos del doctor, si se proporcionan
+    roles, // Roles asignados al usuario
+    doctor, // Datos del doctor, si es necesario
   } = req.body;
 
-  // Validar campos requeridos para el usuario
-  if (!name || !lastname || !email || !dni) {
+  // Validar campos requeridos
+  if (!name || !lastname || !email || !dni || !password) {
     res.status(400).json({ error: "Missing required fields for user." });
     return;
   }
 
   try {
-    // Validar roles, si se proporcionan
+    // Verificar que el usuario no exista
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      res.status(400).json({ error: "User with this email already exists." });
+      return;
+    }
+
+    // Hashear la contraseña
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Crear el usuario con roles y datos de doctor, si existen
     let roleConnections = undefined;
     if (roles) {
       if (!Array.isArray(roles)) {
@@ -73,12 +121,13 @@ export const createUser = async (
       };
     }
 
-    // Crear el usuario con roles y datos de doctor, si existen
+    // Crear el usuario
     const user = await prisma.user.create({
       data: {
         name,
         lastname,
         email,
+        password: hashedPassword, // Almacenar la contraseña hasheada
         cuilprefix,
         dni,
         cuilpostfix,
@@ -86,11 +135,11 @@ export const createUser = async (
         doctor: doctorData ? { create: doctorData } : undefined,
       },
       include: {
-        doctor: true, // Incluimos la información del doctor en la respuesta
+        doctor: true, // Incluir la información del doctor en la respuesta, si corresponde
       },
     });
 
-    res.status(201).json(user);
+    res.status(201).json(user); // Respuesta con el usuario creado
   } catch (error) {
     console.error("Error creating user:", error);
     res.status(500).json({ error: "Failed to create user." });

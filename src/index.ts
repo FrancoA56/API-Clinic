@@ -2,6 +2,7 @@ import express, { Application } from "express";
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import router from "./routes";
+import cors from 'cors';
 
 dotenv.config();
 
@@ -9,6 +10,11 @@ const app: Application = express();
 
 // Middlewares
 app.use(express.json());
+
+app.use(cors({
+    origin: 'http://localhost:5173', // Cambia esto al dominio del cliente en producción
+    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Métodos permitidos
+  }));
 
 app.use("/api", router);
 

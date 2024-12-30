@@ -6,7 +6,7 @@ export const getAllPermissions = async (req: Request, res: Response) => {
     const permission = await prisma.permission.findMany();
     res.status(200).json(permission);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch roles." });
+    res.status(500).json({ error: "Failed to fetch permission." });
   }
 };
 

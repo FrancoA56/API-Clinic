@@ -6,7 +6,7 @@ export const getAllSocials = async (req: Request, res: Response) => {
     const Socials = await prisma.social.findMany();
     res.status(200).json(Socials);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch roles." });
+    res.status(500).json({ error: "Failed to fetch social." });
   }
 };
 

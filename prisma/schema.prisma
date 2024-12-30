@@ -30,6 +30,7 @@ model User {
   name        String
   lastname    String
   email       String   @unique
+  password    String
   cuilprefix  Int
   dni         Int      @unique
   cuilpostfix Int
@@ -67,16 +68,6 @@ model Permission {
   id    Int    @id @default(autoincrement())
   name  String
   roles Role[] @relation("RolePermissions")
-}
-
-model Social {
-  id            Int             @id @default(autoincrement())
-  name          String
-  cuil          String          @unique
-  pacients      Pacient[]       @relation("SocialPacient")
-  practices     Practice[]
-  invoices      Invoice[]
-  pacientSocial PacientSocial[]
 }
 
 model Pacient {
@@ -123,36 +114,6 @@ model Appointment {
   practices Practice[]
 }
 
-model Practice {
-  id            Int            @id @default(autoincrement())
-  type          PracticeType   @relation(fields: [typeId], references: [id])
-  typeId        Int
-  description   String?
-  code          Int
-  honorario     Float
-  gastos        Float
-  valor         Float
-  date          DateTime       @default(now()) // Fecha de la práctica (solo día)
-  hour          Int // Hora de la práctica (0-23)
-  minute        Int // Minuto de la práctica (0-59)
-  patient       Pacient        @relation(fields: [patientId], references: [id])
-  patientId     Int
-  doctor        Doctor         @relation(fields: [doctorId], references: [id])
-  doctorId      Int
-  appointment   Appointment    @relation(fields: [appointmentId], references: [id])
-  appointmentId Int
-  socials       Social         @relation(fields: [socialId], references: [id])
-  socialId      Int
-  status        PracticeStatus @default(PENDING)
-  createdAt     DateTime       @default(now())
-}
-
-model PracticeType {
-  id        Int        @id @default(autoincrement())
-  name      String     @unique // Nombre del tipo de práctica
-  practices Practice[]
-}
-
 model Invoice {
   id      Int         @id @default(autoincrement())
   type    InvoiceType
@@ -163,4 +124,56 @@ model Invoice {
   socials Social[]
 
   @@unique([type, serie, number])
+}
+
+model Code {
+  id            Int            @id @default(autoincrement())
+  name          String
+  description   String
+  honorario     Float // Valor base de honorario
+  gastos        Float // Valor base de gastos
+  multiplier    Float? // Multiplicador genérico (opcional)
+  practiceCodes PracticeCode[]
+}
+
+model Social {
+  id             Int             @id @default(autoincrement())
+  name           String
+  cuil           String          @unique
+  pacients       Pacient[]       @relation("SocialPacient")
+  practices      Practice[]
+  practicesCodes PracticeCode[]
+  invoices       Invoice[]
+  pacientSocial  PacientSocial[]
+}
+
+model Practice {
+  id            Int            @id @default(autoincrement())
+  description   String?
+  date          DateTime       @default(now())
+  hour          Int // Hora de la práctica (0-23)
+  minute        Int // Minuto de la práctica (0-59)
+  patient       Pacient        @relation(fields: [patientId], references: [id])
+  patientId     Int
+  doctor        Doctor         @relation(fields: [doctorId], references: [id])
+  doctorId      Int
+  appointment   Appointment    @relation(fields: [appointmentId], references: [id])
+  appointmentId Int
+  social        Social         @relation(fields: [socialId], references: [id])
+  socialId      Int
+  status        PracticeStatus @default(PENDING)
+  createdAt     DateTime       @default(now())
+  practiceCodes PracticeCode[]
+}
+
+model PracticeCode {
+  id          Int      @id @default(autoincrement())
+  practice    Practice @relation(fields: [practiceId], references: [id])
+  practiceId  Int
+  code        Code     @relation(fields: [codeId], references: [id])
+  codeId      Int
+  social      Social   @relation(fields: [socialId], references: [id])
+  socialId    Int
+  multiplier  Float? // Multiplicador específico para esta combinación
+  forcedValue Float? // Valor forzado para esta combinación, opcional
 }

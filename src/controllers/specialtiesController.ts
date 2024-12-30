@@ -6,10 +6,14 @@ export const getAllSpecialties = async (
   res: Response
 ): Promise<void> => {
   try {
-    const specialties = await prisma.specialty.findMany();
+    const specialties = await prisma.specialty.findMany({
+      orderBy: {
+        name: "asc",
+      },
+    });
     res.status(200).json(specialties);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch users." });
+    res.status(500).json({ error: "Failed to fetch specialties." });
   }
 };
 
@@ -27,6 +31,6 @@ export const createSpecialty = async (req: Request, res: Response) => {
     });
     res.status(200).json(specialty);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch users." });
+    res.status(500).json({ error: "Failed to fetch specialties." });
   }
 };
