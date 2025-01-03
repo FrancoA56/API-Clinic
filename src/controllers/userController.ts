@@ -1,7 +1,20 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import { Request, Response, NextFunction } from "express";
+import { Request, Response } from "express";
 import prisma from "../config/prisma";
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        role: string;
+        [key: string]: any; // Otros campos del usuario si es necesario
+      };
+    }
+  }
+}
+
 
 // Asegúrate de que JWT_SECRET esté correctamente definido
 const JWT_SECRET = process.env.JWT_SECRET as string;
@@ -22,6 +35,13 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     // Buscar al usuario por email
     const user = await prisma.user.findUnique({
       where: { email },
+      include: {
+        roles: {
+          include: {
+            permissions: true,
+          },
+        },
+      },
     });
 
     if (!user) {
@@ -36,21 +56,43 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Crear un arreglo con los nombres de los permisos
+    const permissions = user.roles
+      .flatMap((role) => role.permissions)
+      .map((permission) => permission.name);
+
     // Generar JWT
     const token = jwt.sign(
-      { userId: user.id, email: user.email },
+      {
+        userId: user.id,
+        email: user.email,
+        roles: user.roles.map((role) => role.name),
+        permissions,
+      },
       JWT_SECRET,
       { expiresIn: "1h" } // Expira en 1 hora
     );
 
-    res.status(200).json({ token, user: { id: user.id, name: user.name, email: user.email } });
+    res.status(200).json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        roles: user.roles.map((role) => role.name),
+        permissions,
+      },
+    });
   } catch (error) {
     console.error("Error during login:", error);
     res.status(500).json({ error: "Failed to log in." });
   }
 };
 
-export const createUser = async (req: Request, res: Response): Promise<void> => {
+export const createUser = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   const {
     name,
     lastname,
@@ -83,45 +125,6 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
     // Hashear la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Crear el usuario con roles y datos de doctor, si existen
-    let roleConnections = undefined;
-    if (roles) {
-      if (!Array.isArray(roles)) {
-        throw new Error("Roles must be an array of IDs.");
-      }
-      roleConnections = roles.map((roleId: number) => ({ id: roleId }));
-    }
-
-    // Validar datos del doctor, si se proporcionan
-    let doctorData = undefined;
-    if (doctor) {
-      const { matriculaNacional, matriculaProvincial, specialties } = doctor;
-
-      if (!matriculaNacional || !matriculaProvincial) {
-        throw new Error("Missing required fields for doctor.");
-      }
-
-      // Validar especialidades, si se proporcionan
-      let specialtyConnections = undefined;
-      if (specialties) {
-        if (!Array.isArray(specialties)) {
-          throw new Error("Specialties must be an array of IDs.");
-        }
-        specialtyConnections = specialties.map((specialtyId: number) => ({
-          id: specialtyId,
-        }));
-      }
-
-      doctorData = {
-        matriculaNacional,
-        matriculaProvincial,
-        specialties: specialtyConnections
-          ? { connect: specialtyConnections }
-          : undefined,
-      };
-    }
-
-    // Crear el usuario
     const user = await prisma.user.create({
       data: {
         name,
@@ -131,8 +134,18 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
         cuilprefix,
         dni,
         cuilpostfix,
-        roles: roleConnections ? { connect: roleConnections } : undefined,
-        doctor: doctorData ? { create: doctorData } : undefined,
+        roles: { connect: roles?.map((roleId: number) => ({ id: roleId })) },
+        doctor: doctor
+          ? {
+              create: {
+                matriculaNacional: doctor.matriculaNacional,
+                matriculaProvincial: doctor.matriculaProvincial,
+                specialties: {
+                  connect: doctor.specialties?.map((id: number) => ({ id })),
+                },
+              },
+            }
+          : undefined,
       },
       include: {
         doctor: true, // Incluir la información del doctor en la respuesta, si corresponde
@@ -145,3 +158,5 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
     res.status(500).json({ error: "Failed to create user." });
   }
 };
+
+
